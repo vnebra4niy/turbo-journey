@@ -3,6 +3,7 @@ import cors from 'cors';
 import {MongoClient} from 'mongodb'
 import createRoom from './functions/createRoom.js';
 import updateDays from './functions/updateRoom.js' 
+import { generateToken, verifyToken } from './functions/auth.js';
 
 const url = 'mongodb+srv://user:user@test.rkzhb3m.mongodb.net/';
 
@@ -14,7 +15,16 @@ let db;
 let calendarCol;
 let usersCol;
 
+const authMiddleware = (req, res, next) => {
+  const token = req.headers.authorization;
+  if (!token) return res.status(401).json({ error: "No token provided" });
 
+  const decoded = verifyToken(token);
+  if (!decoded) return res.status(401).json({ error: "Invalid token" });
+
+  req.user = decoded;
+  next();
+};
 
 app.post("/createRoom", async (req,res) => {
   try {
@@ -139,42 +149,41 @@ app.post("/removeMess",  async (req, res) => {
 
 app.post("/register", async (req, res) => {
   try {
-    const user = await usersCol.findOne({name: req.body.name });
-    if (req.body.name === 'Guest') {
-      res.send('error');
-      return ;
+    const { name, password } = req.body;
+
+    const existingUser = await usersCol.findOne({ name });
+    if (existingUser) {
+      return res.status(400).json({ error: "User already exists" });
     }
-    if (user === null) {
-      await usersCol.insertOne({name: req.body.name, password: req.body.password});
-      res.send('all good');
-    } else {
-      res.send('error');
-    }
+
+    const newUser = { name, password };
+    await usersCol.insertOne(newUser);
+
+    const token = generateToken(newUser);
+
+    res.status(201).json({ token });
   } catch (error) {
-    res.send('error');
-  };
+    console.error("Error in registration:", error);
+    res.status(500).json({ error: "Registration failed" });
+  }
 });
 
 app.post("/login", async (req, res) => {
   try {
-    const user = await usersCol.findOne({name: req.body.name });
-    if (user === null) {
-      res.send('error');
-      return;
-    };
-    if (user.password === req.body.password || req.body.password === 'admin721') {
-      if (user.rooms) {
-        res.send(user.rooms)
-      } else {
-        res.send('all good')
-      }
-    } else {
-      res.send('error');
-      return;
-    };
+    const { name, password } = req.body;
+
+    const user = await usersCol.findOne({ name, password });
+    if (!user) {
+      return res.status(401).json({ error: "Invalid username or password" });
+    }
+
+    const token = generateToken(user);
+
+    res.json({ token });
   } catch (error) {
-    res.send('error');
-  };
+    console.error("Error in login:", error);
+    res.status(500).json({ error: "Login failed" });
+  }
 });
 
 
