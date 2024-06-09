@@ -265,14 +265,3 @@ MongoClient.connect(url)
     app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
   })
   .catch((err) => console.log(err));
-
-
-
-
-
-
-
-
-
-
-  
